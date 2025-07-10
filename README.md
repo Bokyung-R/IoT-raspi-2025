@@ -114,3 +114,20 @@ IoT 개발자 라즈베리파이 리포지토리
     - S : 핀번호
     - \- : GND
     - 중간핀 : VCC 연결
+
+- [실습](./button_led.py) : 핀버튼을 1번 눌렀을 때 led off, 2번 : red, 3번 : green, 4번 : blue가 되도록
+
+## 3일차
+
+### 라즈베리파이 실습
+#### 온습도 센서
+
+- 설치
+    ```python
+    pip install adafruit-circuitpython-dht
+    sudo api install libgpiod2
+    ``` 
+
+- [실습1](./dht11.py) : 온습도 센서로 받아온 값 출력
+- [실습2](./dth11_db.py) : 온습도 센서로 받아온 값 db에 저장
+    <img src="./image/raspi0006.png" >
