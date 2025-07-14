@@ -131,3 +131,14 @@ IoT 개발자 라즈베리파이 리포지토리
 - [실습1](./dht11.py) : 온습도 센서로 받아온 값 출력
 - [실습2](./dth11_db.py) : 온습도 센서로 받아온 값 db에 저장
     <img src="./image/raspi0006.png" >
+
+## 4일차 
+### PyQt
+- 설치
+    ```python
+    sudo api install python3-pyqt5
+    sudo apt install qttools5-dev-tools
+    ```
+
+- Putty에서는 실행 불가, VNC viewer에서 실행해야함
+
