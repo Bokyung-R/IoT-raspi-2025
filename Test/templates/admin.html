@@ -1,23 +1,27 @@
 <!DOCTYPE html>
-<html>
-<head><title>Admin</title></head>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>신호등 관리자 페이지</title>
+</head>
 <body>
-  <h2>관리자 페이지</h2>
-  {% for room, state in rooms.items() %}
-    <h3>{{ room }}</h3>
-    <p>온도: {{ state.temperature }}°C, 습도: {{ state.humidity }}%</p>
-    <p>LED: {{ 'ON' if state.led else 'OFF' }},
-       부저: {{ 'ON' if state.buzzer else 'OFF' }}</p>
-    <a href="/toggle/led/{{ room }}">LED 토글</a>
-    <a href="/toggle/buzzer/{{ room }}">부저 토글</a>
-    <hr>
-  {% endfor %}
+    <h2>신호등 타이밍 설정</h2>
+    <form action="/set_timing" method="POST">
+        <label>초록불 시간(초):</label>
+        <input type="number" name="green_time" value="60"><br><br>
 
-  <h3>로그</h3>
-  {% for log in logs %}
-    <p>[{{ log.user }} → {{ log.room }}: {{ log.action }}</p>
-  {% endfor %}
+        <label>노란불 시간(초):</label>
+        <input type="number" name="yellow_time" value="3"><br><br>
 
-  <a href="/logout">로그아웃</a>
+        <label>빨간불 시간(초):</label>
+        <input type="number" name="red_time" value="30"><br><br>
+
+        <button type="submit">타이밍 저장</button>
+    </form>
+
+    <br><br>
+    <form action="/start_cycle" method="POST">
+        <button type="submit">신호 시작 (1회)</button>
+    </form>
 </body>
 </html>
