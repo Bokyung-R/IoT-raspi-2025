@@ -1,0 +1,157 @@
+import RPi.GPIO as GPIO
+import time
+import threading
+
+# === GPIO 핀 번호 ===
+CAR_GREEN = 18
+CAR_YELLOW = 15
+CAR_RED = 14
+
+PED_RED = 23
+PED_GREEN = 24
+
+PED_BUTTON = 25
+
+# === 타이머 설정 (초) ===
+timers = {
+    "car_green": 6,
+    "car_yellow": 1,
+    "car_red": 5,
+    "ped_green": 6,
+    "ped_red": 7
+}
+
+# === GPIO 초기화 ===
+GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
+
+for pin in [CAR_GREEN, CAR_YELLOW, CAR_RED, PED_RED, PED_GREEN]:
+    GPIO.setup(pin, GPIO.OUT)
+
+GPIO.setup(PED_BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+
+# LED 초기 상태: 모두 끔 (자동차 LED는 LOW일 때 켜짐, 보도 LED는 HIGH일 때 꺼짐이라 가정)
+GPIO.output(CAR_GREEN, GPIO.HIGH)
+GPIO.output(CAR_YELLOW, GPIO.HIGH)
+GPIO.output(CAR_RED, GPIO.HIGH)
+GPIO.output(PED_RED, GPIO.LOW)
+GPIO.output(PED_GREEN, GPIO.LOW)
+
+pedestrian_requested = False
+lock = threading.Lock()
+
+def button_pressed(channel):
+    global pedestrian_requested
+    with lock:
+        if not pedestrian_requested:
+            pedestrian_requested = True
+            print("🚶 보행자 버튼 눌림 감지")
+
+GPIO.add_event_detect(PED_BUTTON, GPIO.RISING, callback=button_pressed, bouncetime=300)
+
+def pedestrian_sequence():
+    print("🔴 보행자 신호 시작")
+    # 차량 노랑, 보행자 빨강
+    GPIO.output(CAR_GREEN, GPIO.LOW)
+    GPIO.output(CAR_YELLOW, GPIO.HIGH)
+    GPIO.output(CAR_RED, GPIO.LOW)
+
+    GPIO.output(PED_RED, GPIO.LOW)
+    GPIO.output(PED_GREEN, GPIO.HIGH)
+    time.sleep(timers["car_yellow"])
+
+    # 차량 빨강, 보행자 빨강 유지 1초
+    GPIO.output(CAR_GREEN, GPIO.LOW)
+    GPIO.output(CAR_YELLOW, GPIO.LOW)
+    GPIO.output(CAR_RED, GPIO.HIGH)
+
+    GPIO.output(PED_RED, GPIO.LOW)
+    GPIO.output(PED_GREEN, GPIO.HIGH)
+    time.sleep(1)
+
+    # 차량 빨강 유지, 보행자 초록
+    GPIO.output(CAR_GREEN, GPIO.LOW)
+    GPIO.output(CAR_YELLOW, GPIO.LOW)
+    GPIO.output(CAR_RED, GPIO.HIGH)
+
+    GPIO.output(PED_RED, GPIO.HIGH)
+    GPIO.output(PED_GREEN, GPIO.LOW)
+    time.sleep(timers["ped_green"])
+
+    # 보행자 빨강 (안전시간 1초)
+    GPIO.output(PED_RED, GPIO.LOW)
+    GPIO.output(PED_GREEN, GPIO.HIGH)
+    time.sleep(1)
+
+    # 차량 노랑, 보행자 빨강
+    GPIO.output(CAR_GREEN, GPIO.LOW)
+    GPIO.output(CAR_YELLOW, GPIO.HIGH)
+    GPIO.output(CAR_RED, GPIO.LOW)
+
+    GPIO.output(PED_RED, GPIO.LOW)
+    GPIO.output(PED_GREEN, GPIO.HIGH)
+    time.sleep(timers["car_yellow"])
+
+    # 차량 초록, 보행자 빨강
+    GPIO.output(CAR_GREEN, GPIO.HIGH)
+    GPIO.output(CAR_YELLOW, GPIO.LOW)
+    GPIO.output(CAR_RED, GPIO.LOW)
+
+    GPIO.output(PED_RED, GPIO.LOW)
+    GPIO.output(PED_GREEN, GPIO.HIGH)
+    print("🟢 보행자 신호 종료, 기본 신호로 복귀")
+
+def run_traffic_loop():
+    global pedestrian_requested
+
+    while True:
+        if pedestrian_requested:
+            pedestrian_sequence()
+            with lock:
+                pedestrian_requested = False
+        else:
+            print("🚗 차량 초록불 / 보행자 빨간불")
+            GPIO.output(CAR_GREEN, GPIO.HIGH)
+            GPIO.output(CAR_YELLOW, GPIO.LOW)
+            GPIO.output(CAR_RED, GPIO.LOW)
+
+            GPIO.output(PED_RED, GPIO.LOW)
+            GPIO.output(PED_GREEN, GPIO.HIGH)
+            time.sleep(timers["car_green"])
+
+            print("🟡 차량 노란불 / 보행자 빨간불")
+            GPIO.output(CAR_GREEN, GPIO.LOW)
+            GPIO.output(CAR_YELLOW, GPIO.HIGH)
+            GPIO.output(CAR_RED, GPIO.LOW)
+
+            GPIO.output(PED_RED, GPIO.LOW)
+            GPIO.output(PED_GREEN, GPIO.HIGH)
+            time.sleep(timers["car_yellow"])
+
+            print("🔴 차량 빨간불 / 보행자 초록불")
+            GPIO.output(CAR_GREEN, GPIO.LOW)
+            GPIO.output(CAR_YELLOW, GPIO.LOW)
+            GPIO.output(CAR_RED, GPIO.HIGH)
+
+            GPIO.output(PED_RED, GPIO.HIGH)
+            GPIO.output(PED_GREEN, GPIO.LOW)
+            time.sleep(timers["car_red"])
+
+            print("🟡 차량 노란불 / 보행자 초록불")
+            GPIO.output(CAR_GREEN, GPIO.LOW)
+            GPIO.output(CAR_YELLOW, GPIO.HIGH)
+            GPIO.output(CAR_RED, GPIO.LOW)
+
+            GPIO.output(PED_RED, GPIO.HIGH)
+            GPIO.output(PED_GREEN, GPIO.LOW)
+            time.sleep(timers["car_yellow"])
+
+try:
+    print("🚦 신호등 시스템 시작")
+    run_traffic_loop()
+
+except KeyboardInterrupt:
+    print("🛑 종료 중...")
+
+finally:
+    GPIO.cleanup()

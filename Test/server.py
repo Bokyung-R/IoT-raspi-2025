@@ -14,8 +14,7 @@ CAR_RED = 18
 PED_RED = 23
 PED_GREEN = 24
 
-# 횡단보도 버튼
-PED_BUTTON = 25  # 기존 25 대신 다른 핀으로 변경 권장
+PED_BUTTON = 25
 
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(CAR_GREEN, GPIO.OUT)
@@ -23,18 +22,16 @@ GPIO.setup(CAR_YELLOW, GPIO.OUT)
 GPIO.setup(CAR_RED, GPIO.OUT)
 GPIO.setup(PED_GREEN, GPIO.OUT)
 GPIO.setup(PED_RED, GPIO.OUT)
-GPIO.setup(PED_BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_UP)  # 버튼 풀업
+GPIO.setup(PED_BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_UP) 
 
-# 초기 타이머 (초단위)
 timers = {
-    "car_green": 60,
-    "car_yellow": 3,
-    "car_red": 30,
-    "ped_green": 15,
-    "ped_red": 45
+    "car_green": 5,
+    "car_yellow": 1,
+    "car_red": 2,
+    "ped_green": 2,
+    "ped_red": 6
 }
 
-# 신호 상태 저장
 signal_state = {
     "car": "green",
     "ped": "red",
@@ -49,7 +46,6 @@ def set_car_light(color):
 def set_ped_light(color):
     GPIO.output(PED_GREEN, color == "green")
     GPIO.output(PED_RED, color == "red")
-
 def traffic_light_cycle():
     while True:
         if not signal_state["override"]:
@@ -63,8 +59,9 @@ def traffic_light_cycle():
                 time.sleep(1)
             if signal_state["override"]:
                 continue
-
+\
             signal_state["car"] = "yellow"
+            signal_state["ped"] = "red"
             set_car_light("yellow")
             set_ped_light("red")
             for _ in range(timers["car_yellow"]):
@@ -73,16 +70,26 @@ def traffic_light_cycle():
                 time.sleep(1)
             if signal_state["override"]:
                 continue
-
+            
             signal_state["car"] = "red"
+            signal_state["ped"] = "green"
             set_car_light("red")
-            set_ped_light("red")
+            set_ped_light("green")
             for _ in range(timers["car_red"]):
                 if signal_state["override"]:
                     break
                 time.sleep(1)
             if signal_state["override"]:
                 continue
+
+            signal_state["car"] = "red"
+            signal_state["ped"] = "red"
+            set_car_light("red")
+            set_ped_light("red")
+            for _ in range(timers["ped_red"]):
+                if signal_state["override"]:
+                    break
+                time.sleep(1)
         else:
             time.sleep(5)
             signal_state["override"] = True
@@ -99,6 +106,7 @@ def traffic_light_cycle():
             for _ in range(timers["ped_red"]):
                 time.sleep(1)
             signal_state["override"] = False
+
 
 def button_listener():
     while True:
