@@ -1,122 +1,142 @@
-from flask import Flask, request, redirect
-import RPi.GPIO as GPIO
-import time
+from flask import Flask, request, redirect, render_template
 import threading
+import time
+import RPi.GPIO as GPIO
 
 app = Flask(__name__)
 
-# GPIO 핀 설정
-CAR_RED = 17
-CAR_YELLOW = 27
-CAR_GREEN = 22
+# 자동차 신호 LED (빨강, 노랑, 초록)
+CAR_GREEN = 14
+CAR_YELLOW = 15
+CAR_RED = 18
+
+# 횡단보도 RGB LED 3핀
 PED_RED = 23
 PED_GREEN = 24
-BUTTON_PIN = 25
+
+# 횡단보도 버튼
+PED_BUTTON = 25  # 기존 25 대신 다른 핀으로 변경 권장
 
 GPIO.setmode(GPIO.BCM)
-pins = [CAR_RED, CAR_YELLOW, CAR_GREEN, PED_RED, PED_GREEN]
-for pin in pins:
-    GPIO.setup(pin, GPIO.OUT)
-    GPIO.output(pin, GPIO.LOW)
+GPIO.setup(CAR_GREEN, GPIO.OUT)
+GPIO.setup(CAR_YELLOW, GPIO.OUT)
+GPIO.setup(CAR_RED, GPIO.OUT)
+GPIO.setup(PED_GREEN, GPIO.OUT)
+GPIO.setup(PED_RED, GPIO.OUT)
+GPIO.setup(PED_BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_UP)  # 버튼 풀업
 
-GPIO.setup(BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
-# 신호등 시간 (초)
-timings = {
-    'green': 60,
-    'yellow': 3,
-    'red': 30
+# 초기 타이머 (초단위)
+timers = {
+    "car_green": 60,
+    "car_yellow": 3,
+    "car_red": 30,
+    "ped_green": 15,
+    "ped_red": 45
 }
 
-lock = threading.Lock()
-pedestrian_requested = False
+# 신호 상태 저장
+signal_state = {
+    "car": "green",
+    "ped": "red",
+    "override": False
+}
 
-def signal_loop():
-    global pedestrian_requested
+def set_car_light(color):
+    GPIO.output(CAR_GREEN, color == "green")
+    GPIO.output(CAR_YELLOW, color == "yellow")
+    GPIO.output(CAR_RED, color == "red")
+
+def set_ped_light(color):
+    GPIO.output(PED_GREEN, color == "green")
+    GPIO.output(PED_RED, color == "red")
+
+def traffic_light_cycle():
     while True:
-        with lock:
-            green = timings['green']
-            yellow = timings['yellow']
-            red = timings['red']
-        # 1. 자동차 초록불
-        GPIO.output(CAR_GREEN, GPIO.HIGH)
-        GPIO.output(CAR_YELLOW, GPIO.LOW)
-        GPIO.output(CAR_RED, GPIO.LOW)
-        GPIO.output(PED_RED, GPIO.HIGH)
-        GPIO.output(PED_GREEN, GPIO.LOW)
-        wait_with_button_check(green)
+        if not signal_state["override"]:
+            signal_state["car"] = "green"
+            signal_state["ped"] = "red"
+            set_car_light("green")
+            set_ped_light("red")
+            for _ in range(timers["car_green"]):
+                if signal_state["override"]:
+                    break
+                time.sleep(1)
+            if signal_state["override"]:
+                continue
 
-        # 2. 노랑불
-        GPIO.output(CAR_GREEN, GPIO.LOW)
-        GPIO.output(CAR_YELLOW, GPIO.HIGH)
-        wait_with_button_check(yellow)
+            signal_state["car"] = "yellow"
+            set_car_light("yellow")
+            set_ped_light("red")
+            for _ in range(timers["car_yellow"]):
+                if signal_state["override"]:
+                    break
+                time.sleep(1)
+            if signal_state["override"]:
+                continue
 
-        # 3. 빨간불
-        GPIO.output(CAR_YELLOW, GPIO.LOW)
-        GPIO.output(CAR_RED, GPIO.HIGH)
-        if pedestrian_requested:
-            # 횡단보도 초록불로 5초 후 바꾸기
+            signal_state["car"] = "red"
+            set_car_light("red")
+            set_ped_light("red")
+            for _ in range(timers["car_red"]):
+                if signal_state["override"]:
+                    break
+                time.sleep(1)
+            if signal_state["override"]:
+                continue
+        else:
             time.sleep(5)
-            GPIO.output(PED_RED, GPIO.LOW)
-            GPIO.output(PED_GREEN, GPIO.HIGH)
-            time.sleep(5)
-            GPIO.output(PED_GREEN, GPIO.LOW)
-            GPIO.output(PED_RED, GPIO.HIGH)
-            pedestrian_requested = False
-        time.sleep(red)
+            signal_state["override"] = True
+            signal_state["car"] = "red"
+            signal_state["ped"] = "green"
+            set_car_light("red")
+            set_ped_light("green")
+            for _ in range(timers["ped_green"]):
+                time.sleep(1)
+            signal_state["car"] = "red"
+            signal_state["ped"] = "red"
+            set_car_light("red")
+            set_ped_light("red")
+            for _ in range(timers["ped_red"]):
+                time.sleep(1)
+            signal_state["override"] = False
 
-def wait_with_button_check(duration):
-    global pedestrian_requested
-    start = time.time()
-    while time.time() - start < duration:
-        if GPIO.input(BUTTON_PIN) == GPIO.LOW:
-            pedestrian_requested = True
+def button_listener():
+    while True:
+        input_state = GPIO.input(PED_BUTTON)
+        if input_state == False:
+            if not signal_state["override"]:
+                print("횡단보도 버튼 눌림!")
+                signal_state["override"] = True
+            time.sleep(0.5)
         time.sleep(0.1)
-
-threading.Thread(target=signal_loop, daemon=True).start()
 
 @app.route('/admin', methods=['GET', 'POST'])
 def admin():
     if request.method == 'POST':
-        green = int(request.form.get('green', 60))
-        yellow = int(request.form.get('yellow', 3))
-        red = int(request.form.get('red', 30))
-        with lock:
-            timings['green'] = green
-            timings['yellow'] = yellow
-            timings['red'] = red
+        try:
+            timers["car_green"] = int(request.form.get("car_green", timers["car_green"]))
+            timers["car_yellow"] = int(request.form.get("car_yellow", timers["car_yellow"]))
+            timers["car_red"] = int(request.form.get("car_red", timers["car_red"]))
+            timers["ped_green"] = int(request.form.get("ped_green", timers["ped_green"]))
+            timers["ped_red"] = int(request.form.get("ped_red", timers["ped_red"]))
+        except ValueError:
+            pass
         return redirect('/admin')
-    
-    with lock:
-        green = timings['green']
-        yellow = timings['yellow']
-        red = timings['red']
-    
-    return f"""
-    <h2>신호등 시간 설정 (Admin)</h2>
-    <form method="post">
-        자동차 초록불 시간 (초): <input type="number" name="green" value="{green}"><br><br>
-        자동차 노랑불 시간 (초): <input type="number" name="yellow" value="{yellow}"><br><br>
-        자동차 빨간불 시간 (초): <input type="number" name="red" value="{red}"><br><br>
-        <button type="submit">설정 저장</button>
-    </form>
-    <br>
-    <a href="/">홈으로</a>
-    """
 
-@app.route('/')
-def home():
-    return """
-    <h2>신호등 제어 시스템</h2>
-    <a href="/admin">관리자 페이지로 이동</a>
-    """
-
-@app.teardown_appcontext
-def cleanup(exception=None):
-    GPIO.cleanup()
+    return render_template('admin.html', timers=timers, signal_state=signal_state)
 
 if __name__ == '__main__':
     try:
-        app.run(host='0.0.0.0', port=5000, debug=True)
+        set_car_light("green")
+        set_ped_light("red")
+
+        thread_traffic = threading.Thread(target=traffic_light_cycle, daemon=True)
+        thread_traffic.start()
+
+        thread_button = threading.Thread(target=button_listener, daemon=True)
+        thread_button.start()
+
+        app.run(host='0.0.0.0', port=5000)
+
     finally:
         GPIO.cleanup()

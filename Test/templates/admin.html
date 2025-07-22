@@ -1,27 +1,29 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
     <title>신호등 관리자 페이지</title>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        label { display: block; margin-top: 10px; }
+        input[type=number] { width: 60px; }
+        input[type=submit] { margin-top: 20px; padding: 10px 20px; }
+    </style>
 </head>
 <body>
-    <h2>신호등 타이밍 설정</h2>
-    <form action="/set_timing" method="POST">
-        <label>초록불 시간(초):</label>
-        <input type="number" name="green_time" value="60"><br><br>
-
-        <label>노란불 시간(초):</label>
-        <input type="number" name="yellow_time" value="3"><br><br>
-
-        <label>빨간불 시간(초):</label>
-        <input type="number" name="red_time" value="30"><br><br>
-
-        <button type="submit">타이밍 저장</button>
+    <h1>신호등 타이밍 설정 (초단위)</h1>
+    <form method="post" action="/admin">
+        <label>자동차 초록불 시간: <input type="number" name="car_green" value="{{ timers.car_green }}" min="1"></label>
+        <label>자동차 노란불 시간: <input type="number" name="car_yellow" value="{{ timers.car_yellow }}" min="1"></label>
+        <label>자동차 빨간불 시간: <input type="number" name="car_red" value="{{ timers.car_red }}" min="1"></label>
+        <label>횡단보도 초록불 시간: <input type="number" name="ped_green" value="{{ timers.ped_green }}" min="1"></label>
+        <label>횡단보도 빨간불 시간: <input type="number" name="ped_red" value="{{ timers.ped_red }}" min="1"></label>
+        <input type="submit" value="설정 저장">
     </form>
-
-    <br><br>
-    <form action="/start_cycle" method="POST">
-        <button type="submit">신호 시작 (1회)</button>
-    </form>
+    <hr>
+    <h2>현재 신호 상태</h2>
+    <p>자동차 신호: <strong>{{ signal_state.car }}</strong></p>
+    <p>횡단보도 신호: <strong>{{ signal_state.ped }}</strong></p>
+    <p>횡단보도 버튼 눌림 상태: <strong>{{ signal_state.override }}</strong></p>
 </body>
 </html>
