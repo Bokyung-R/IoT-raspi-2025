@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head><title>Dashboard</title></head>
+<body>
+  <h2>{{ room }} 상태</h2>
+  <p>온도: {{ state.temperature }}°C</p>
+  <p>습도: {{ state.humidity }}%</p>
+  <p>LED 상태: {{ '켜짐' if state.led else '꺼짐' }}</p>
+  <p>부저 상태: {{ '켜짐' if state.buzzer else '꺼짐' }}</p>
+
+  <a href="/toggle/led/{{ room }}">LED 토글</a><br>
+  <a href="/toggle/buzzer/{{ room }}">부저 토글</a><br>
+  <a href="/logout">로그아웃</a>
+</body>
+</html>

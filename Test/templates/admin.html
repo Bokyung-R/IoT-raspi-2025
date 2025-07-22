@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head><title>Admin</title></head>
+<body>
+  <h2>관리자 페이지</h2>
+  {% for room, state in rooms.items() %}
+    <h3>{{ room }}</h3>
+    <p>온도: {{ state.temperature }}°C, 습도: {{ state.humidity }}%</p>
+    <p>LED: {{ 'ON' if state.led else 'OFF' }},
+       부저: {{ 'ON' if state.buzzer else 'OFF' }}</p>
+    <a href="/toggle/led/{{ room }}">LED 토글</a>
+    <a href="/toggle/buzzer/{{ room }}">부저 토글</a>
+    <hr>
+  {% endfor %}
+
+  <h3>로그</h3>
+  {% for log in logs %}
+    <p>[{{ log.user }} → {{ log.room }}: {{ log.action }}</p>
+  {% endfor %}
+
+  <a href="/logout">로그아웃</a>
+</body>
+</html>
