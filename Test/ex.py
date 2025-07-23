@@ -40,6 +40,7 @@ def button_pressed(channel):
     with lock:
         if not pedestrian_requested:
             pedestrian_requested = True
+            print("버튼눌림")
 
 GPIO.add_event_detect(PED_BUTTON, GPIO.RISING, callback=button_pressed, bouncetime=300)
 
@@ -67,7 +68,7 @@ def car_red_ped_green():
 
 def pedestrian_sequence():
     global current_status
-
+    print("보행자 버튼실행")
     current_status = "보행자 버튼 클릭됨 - 2초 후 차량 노란불"
     time.sleep(2)
     car_yellow_ped_red()
