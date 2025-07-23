@@ -1,150 +1,165 @@
-from flask import Flask, request, redirect, render_template
-import threading
-import time
+from flask import Flask, request, redirect, render_template, session, url_for
 import RPi.GPIO as GPIO
+import time
+import threading
 
 app = Flask(__name__)
 
-# 자동차 신호 LED (빨강, 노랑, 초록)
-CAR_GREEN = 14
-CAR_YELLOW = 15
-CAR_RED = 18
 
-# 횡단보도 RGB LED 3핀
+CAR_GREEN = 18
+CAR_YELLOW = 15
+CAR_RED = 14
+
 PED_RED = 23
 PED_GREEN = 24
 
 PED_BUTTON = 25
 
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(CAR_GREEN, GPIO.OUT)
-GPIO.setup(CAR_YELLOW, GPIO.OUT)
-GPIO.setup(CAR_RED, GPIO.OUT)
-GPIO.setup(PED_GREEN, GPIO.OUT)
-GPIO.setup(PED_RED, GPIO.OUT)
-GPIO.setup(PED_BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_UP) 
 
 timers = {
-    "car_green": 5,
+    "car_green": 8,
     "car_yellow": 1,
-    "car_red": 2,
-    "ped_green": 2,
-    "ped_red": 6
+    "car_red": 5
 }
 
-signal_state = {
-    "car": "green",
-    "ped": "red",
-    "override": False
-}
 
-def set_car_light(color):
-    GPIO.output(CAR_GREEN, color == "green")
-    GPIO.output(CAR_YELLOW, color == "yellow")
-    GPIO.output(CAR_RED, color == "red")
+GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
 
-def set_ped_light(color):
-    GPIO.output(PED_GREEN, color == "green")
-    GPIO.output(PED_RED, color == "red")
-def traffic_light_cycle():
+for pin in [CAR_GREEN, CAR_YELLOW, CAR_RED, PED_RED, PED_GREEN]:
+    GPIO.setup(pin, GPIO.OUT)
+
+GPIO.setup(PED_BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+
+pedestrian_requested = False
+lock = threading.Lock()
+current_status = "초기화 중"
+
+def button_pressed(channel):
+    global pedestrian_requested
+    with lock:
+        if not pedestrian_requested:
+            pedestrian_requested = True
+            print("버튼눌림")
+
+GPIO.add_event_detect(PED_BUTTON, GPIO.RISING, callback=button_pressed, bouncetime=300)
+
+def car_green_ped_red():
+    GPIO.output(CAR_GREEN, GPIO.HIGH)
+    GPIO.output(CAR_YELLOW, GPIO.LOW)
+    GPIO.output(CAR_RED, GPIO.LOW)
+    GPIO.output(PED_RED, GPIO.LOW)
+    GPIO.output(PED_GREEN, GPIO.HIGH)
+
+def car_yellow_ped_red():
+    GPIO.output(CAR_GREEN, GPIO.LOW)
+    GPIO.output(CAR_YELLOW, GPIO.HIGH)
+    GPIO.output(CAR_RED, GPIO.LOW)
+    GPIO.output(PED_RED, GPIO.LOW)
+    GPIO.output(PED_GREEN, GPIO.HIGH)
+
+def car_red_ped_green():
+    GPIO.output(CAR_GREEN, GPIO.LOW)
+    GPIO.output(CAR_YELLOW, GPIO.LOW)
+    GPIO.output(CAR_RED, GPIO.HIGH)
+    GPIO.output(PED_RED, GPIO.HIGH)
+    GPIO.output(PED_GREEN, GPIO.LOW)
+
+def pedestrian_sequence():
+    global current_status
+    print("보행자 버튼실행")
+    current_status = "보행자 버튼 클릭됨 - 2초 후 차량 노란불"
+    time.sleep(2)
+    car_yellow_ped_red()
+    time.sleep(timers["car_yellow"])
+
+    current_status = "자동차 빨간불 / 도보 초록불"
+    car_red_ped_green()
+    time.sleep(timers["car_red"])
+
+    current_status = "자동차 노란불 / 도보 빨간불"
+    car_yellow_ped_red()
+    time.sleep(timers["car_yellow"])
+
+def run_traffic_loop():
+    global pedestrian_requested, current_status
+
     while True:
-        if not signal_state["override"]:
-            signal_state["car"] = "green"
-            signal_state["ped"] = "red"
-            set_car_light("green")
-            set_ped_light("red")
-            for _ in range(timers["car_green"]):
-                if signal_state["override"]:
+        current_status = "자동차 초록불 / 도보 빨간불"
+        car_green_ped_red()
+        for _ in range(timers["car_green"] * 10):
+            time.sleep(0.1)
+            with lock:
+                if pedestrian_requested:
+                    pedestrian_sequence()
+                    pedestrian_requested = False
                     break
-                time.sleep(1)
-            if signal_state["override"]:
-                continue
-\
-            signal_state["car"] = "yellow"
-            signal_state["ped"] = "red"
-            set_car_light("yellow")
-            set_ped_light("red")
-            for _ in range(timers["car_yellow"]):
-                if signal_state["override"]:
-                    break
-                time.sleep(1)
-            if signal_state["override"]:
-                continue
-            
-            signal_state["car"] = "red"
-            signal_state["ped"] = "green"
-            set_car_light("red")
-            set_ped_light("green")
-            for _ in range(timers["car_red"]):
-                if signal_state["override"]:
-                    break
-                time.sleep(1)
-            if signal_state["override"]:
-                continue
 
-            signal_state["car"] = "red"
-            signal_state["ped"] = "red"
-            set_car_light("red")
-            set_ped_light("red")
-            for _ in range(timers["ped_red"]):
-                if signal_state["override"]:
+        current_status = "자동차 노란불 / 도보 빨간불"
+        car_yellow_ped_red()
+        for _ in range(timers["car_yellow"] * 10):
+            time.sleep(0.1)
+            with lock:
+                if pedestrian_requested:
+                    pedestrian_sequence()
+                    pedestrian_requested = False
                     break
-                time.sleep(1)
-        else:
-            time.sleep(5)
-            signal_state["override"] = True
-            signal_state["car"] = "red"
-            signal_state["ped"] = "green"
-            set_car_light("red")
-            set_ped_light("green")
-            for _ in range(timers["ped_green"]):
-                time.sleep(1)
-            signal_state["car"] = "red"
-            signal_state["ped"] = "red"
-            set_car_light("red")
-            set_ped_light("red")
-            for _ in range(timers["ped_red"]):
-                time.sleep(1)
-            signal_state["override"] = False
 
+        current_status = "자동차 빨간불 / 도보 초록불"
+        car_red_ped_green()
+        for _ in range(timers["car_red"] * 10):
+            time.sleep(0.1)
+            with lock:
+                if pedestrian_requested:
+                    pedestrian_sequence()
+                    pedestrian_requested = False
+                    break
 
-def button_listener():
-    while True:
-        input_state = GPIO.input(PED_BUTTON)
-        if input_state == False:
-            if not signal_state["override"]:
-                print("횡단보도 버튼 눌림!")
-                signal_state["override"] = True
-            time.sleep(0.5)
-        time.sleep(0.1)
+        current_status = "자동차 노란불 / 도보 빨간불"
+        car_yellow_ped_red()
+        for _ in range(timers["car_yellow"] * 10):
+            time.sleep(0.1)
+            with lock:
+                if pedestrian_requested:
+                    pedestrian_sequence()
+                    pedestrian_requested = False
+                    break
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/login', methods=['POST'])
+def login():
+    username = request.form.get('username')
+    password = request.form.get('password')
+    if username == 'admin' and password == 'admin':
+        session['logged_in'] = True
+        return redirect('/admin')
+    else:
+        return render_template('index.html', error="잘못된 로그인 정보입니다.")
 
 @app.route('/admin', methods=['GET', 'POST'])
 def admin():
+    if not session.get('logged_in'):
+        return redirect('/')
+    
+    global timers
     if request.method == 'POST':
-        try:
-            timers["car_green"] = int(request.form.get("car_green", timers["car_green"]))
-            timers["car_yellow"] = int(request.form.get("car_yellow", timers["car_yellow"]))
-            timers["car_red"] = int(request.form.get("car_red", timers["car_red"]))
-            timers["ped_green"] = int(request.form.get("ped_green", timers["ped_green"]))
-            timers["ped_red"] = int(request.form.get("ped_red", timers["ped_red"]))
-        except ValueError:
-            pass
+        for key in ["car_green", "car_yellow", "car_red"]:
+            if key in request.form:
+                try:
+                    timers[key] = int(request.form[key])
+                except ValueError:
+                    pass
         return redirect('/admin')
-
-    return render_template('admin.html', timers=timers, signal_state=signal_state)
+    return render_template('admin.html', timers=timers, status=current_status)
 
 if __name__ == '__main__':
+    t = threading.Thread(target=run_traffic_loop)
+    t.daemon = True
+    t.start()
     try:
-        set_car_light("green")
-        set_ped_light("red")
-
-        thread_traffic = threading.Thread(target=traffic_light_cycle, daemon=True)
-        thread_traffic.start()
-
-        thread_button = threading.Thread(target=button_listener, daemon=True)
-        thread_button.start()
-
-        app.run(host='0.0.0.0', port=5000)
-
+        app.run(host='0.0.0.0')
     finally:
         GPIO.cleanup()
