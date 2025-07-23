@@ -86,49 +86,26 @@ def run_traffic_loop():
     global pedestrian_requested, current_status
 
     while True:
-        # 자동차 초록불
-        current_status = "자동차 초록불 / 도보 빨간불"
-        car_green_ped_red()
-        for _ in range(timers["car_green"] * 10):
-            time.sleep(0.1)
+        if pedestrian_requested:
+            pedestrian_sequence()
             with lock:
-                if pedestrian_requested:
-                    pedestrian_sequence()
-                    pedestrian_requested = False
-                    break
+                pedestrian_requested = False
+        else:
+            current_status = "자동차 초록불 / 도보 빨간불"
+            car_green_ped_red()
+            time.sleep(timers["car_green"])
 
-        # 자동차 노란불
-        current_status = "자동차 노란불 / 도보 빨간불"
-        car_yellow_ped_red()
-        for _ in range(timers["car_yellow"] * 10):
-            time.sleep(0.1)
-            with lock:
-                if pedestrian_requested:
-                    pedestrian_sequence()
-                    pedestrian_requested = False
-                    break
+            current_status = "자동차 노란불 / 도보 빨간불"
+            car_yellow_ped_red()
+            time.sleep(timers["car_yellow"])
 
-        # 자동차 빨간불 / 도보 초록불
-        current_status = "자동차 빨간불 / 도보 초록불"
-        car_red_ped_green()
-        for _ in range(timers["car_red"] * 10):
-            time.sleep(0.1)
-            with lock:
-                if pedestrian_requested:
-                    pedestrian_sequence()
-                    pedestrian_requested = False
-                    break
+            current_status = "자동차 빨간불 / 도보 초록불"
+            car_red_ped_green()
+            time.sleep(timers["car_red"])
 
-        # 다시 노란불 (도보 빨간불)
-        current_status = "자동차 노란불 / 도보 빨간불"
-        car_yellow_ped_red()
-        for _ in range(timers["car_yellow"] * 10):
-            time.sleep(0.1)
-            with lock:
-                if pedestrian_requested:
-                    pedestrian_sequence()
-                    pedestrian_requested = False
-                    break
+            current_status = "자동차 노란불 / 도보 빨간불"
+            car_yellow_ped_red()
+            time.sleep(timers["car_yellow"])
 
 @app.route('/')
 def index():
