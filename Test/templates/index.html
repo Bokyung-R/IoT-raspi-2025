@@ -1,18 +1,19 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <title>기숙사 제어 시스템 - 로그인</title>
+    <title>로그인</title>
 </head>
 <body>
-    <h2>로그인</h2>
-    <form action="/dashboard" method="post">
-        ID: <input type="text" name="id" required><br>
-        PW: <input type="password" name="pw" required><br>
-        Room: <input type="text" name="room" required><br>
+    <h2>신호등 관리자 로그인</h2>
+    {% if error %}
+        <p style="color:red;">{{ error }}</p>
+    {% endif %}
+    <form method="POST" action="/login">
+        <label for="username">아이디:</label>
+        <input type="text" id="username" name="username" required><br><br>
+        <label for="password">비밀번호:</label>
+        <input type="password" id="password" name="password" required><br><br>
         <button type="submit">로그인</button>
     </form>
-    <br>
-    <a href="/sign">회원가입</a>
 </body>
 </html>
