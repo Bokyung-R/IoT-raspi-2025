@@ -14,21 +14,20 @@ PED_RED = 23
 PED_GREEN = 24
 
 PED_BUTTON = 25
+BUZZER = 26  # 새로 추가: 부저 핀
 
-# === 타이머 설정 (기본값, 초 단위) ===
+# === 타이머 기본값 (초 단위) ===
 timers = {
     "car_green": 6,
     "car_yellow": 1,
-    "car_red": 5,
-    "ped_green": 6,
-    "ped_red": 7
+    "car_red": 5
 }
 
-# === 초기 GPIO 설정 ===
+# === GPIO 초기 설정 ===
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 
-for pin in [CAR_GREEN, CAR_YELLOW, CAR_RED, PED_RED, PED_GREEN]:
+for pin in [CAR_GREEN, CAR_YELLOW, CAR_RED, PED_RED, PED_GREEN, BUZZER]:
     GPIO.setup(pin, GPIO.OUT)
 
 GPIO.setup(PED_BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
@@ -39,6 +38,7 @@ GPIO.output(CAR_YELLOW, GPIO.HIGH)
 GPIO.output(CAR_RED, GPIO.HIGH)
 GPIO.output(PED_RED, GPIO.LOW)
 GPIO.output(PED_GREEN, GPIO.LOW)
+GPIO.output(BUZZER, GPIO.LOW)
 
 pedestrian_requested = False
 lock = threading.Lock()
@@ -52,42 +52,50 @@ def button_pressed(channel):
 
 GPIO.add_event_detect(PED_BUTTON, GPIO.RISING, callback=button_pressed, bouncetime=300)
 
-def pedestrian_sequence():
-    global current_status
-
-    # 자동차 빨간불 & 보행자 초록불
-    GPIO.output(CAR_GREEN, GPIO.LOW)
-    GPIO.output(CAR_YELLOW, GPIO.HIGH)
-    GPIO.output(CAR_RED, GPIO.LOW)
-    current_status = "보행자 초록불"
-    GPIO.output(PED_RED, GPIO.LOW)
-    GPIO.output(PED_GREEN, GPIO.HIGH)
-    time.sleep(timers["car_yellow"])
-
-    GPIO.output(CAR_GREEN, GPIO.LOW)
-    GPIO.output(CAR_YELLOW, GPIO.LOW)
-    GPIO.output(CAR_RED, GPIO.HIGH)
-    time.sleep(1)
-
-    GPIO.output(PED_RED, GPIO.HIGH)
-    GPIO.output(PED_GREEN, GPIO.LOW)
-    current_status = "보행자 빨간불"
-    time.sleep(timers["ped_green"])
-
-    GPIO.output(PED_RED, GPIO.LOW)
-    GPIO.output(PED_GREEN, GPIO.HIGH)
-    time.sleep(1)
-
-    GPIO.output(CAR_GREEN, GPIO.LOW)
-    GPIO.output(CAR_YELLOW, GPIO.HIGH)
-    GPIO.output(CAR_RED, GPIO.LOW)
-    time.sleep(timers["car_yellow"])
-
+# === 상태 함수 정의 ===
+def car_green_ped_red():
     GPIO.output(CAR_GREEN, GPIO.HIGH)
     GPIO.output(CAR_YELLOW, GPIO.LOW)
     GPIO.output(CAR_RED, GPIO.LOW)
+    GPIO.output(PED_RED, GPIO.LOW)
     GPIO.output(PED_GREEN, GPIO.HIGH)
-    current_status = "자동차 초록불"
+    GPIO.output(BUZZER, GPIO.LOW)
+
+def car_yellow_ped_red():
+    GPIO.output(CAR_GREEN, GPIO.LOW)
+    GPIO.output(CAR_YELLOW, GPIO.HIGH)
+    GPIO.output(CAR_RED, GPIO.LOW)
+    GPIO.output(PED_RED, GPIO.LOW)
+    GPIO.output(PED_GREEN, GPIO.HIGH)
+    GPIO.output(BUZZER, GPIO.LOW)
+
+def car_red_ped_green():
+    GPIO.output(CAR_GREEN, GPIO.LOW)
+    GPIO.output(CAR_YELLOW, GPIO.LOW)
+    GPIO.output(CAR_RED, GPIO.HIGH)
+    GPIO.output(PED_RED, GPIO.HIGH)
+    GPIO.output(PED_GREEN, GPIO.LOW)
+    # 부저 울리기 (비동기 X: sleep 사용)
+    for _ in range(timers["car_red"] * 2):  # 0.5초 주기로 삐삐삐
+        GPIO.output(BUZZER, GPIO.HIGH)
+        time.sleep(0.2)
+        GPIO.output(BUZZER, GPIO.LOW)
+        time.sleep(0.3)
+
+def pedestrian_sequence():
+    global current_status
+
+    current_status = "보행자 버튼 클릭됨 - 2초 후 차량 노란불"
+    time.sleep(2)
+    car_yellow_ped_red()
+    time.sleep(timers["car_yellow"])
+
+    current_status = "자동차 빨간불 / 도보 초록불 + 부저 울림"
+    car_red_ped_green()
+
+    current_status = "자동차 노란불 / 도보 빨간불"
+    car_yellow_ped_red()
+    time.sleep(timers["car_yellow"])
 
 def run_traffic_loop():
     global pedestrian_requested, current_status
@@ -98,57 +106,46 @@ def run_traffic_loop():
             with lock:
                 pedestrian_requested = False
         else:
-            current_status = "자동차 초록불"
-            GPIO.output(CAR_GREEN, GPIO.HIGH)
-            GPIO.output(CAR_YELLOW, GPIO.LOW)
-            GPIO.output(CAR_RED, GPIO.LOW)
-            GPIO.output(PED_RED, GPIO.LOW)
-            GPIO.output(PED_GREEN, GPIO.HIGH)
+            current_status = "자동차 초록불 / 도보 빨간불"
+            car_green_ped_red()
             time.sleep(timers["car_green"])
 
-            current_status = "자동차 노란불"
-            GPIO.output(CAR_GREEN, GPIO.LOW)
-            GPIO.output(CAR_YELLOW, GPIO.HIGH)
+            current_status = "자동차 노란불 / 도보 빨간불"
+            car_yellow_ped_red()
             time.sleep(timers["car_yellow"])
 
-            current_status = "자동차 빨간불"
-            GPIO.output(CAR_YELLOW, GPIO.LOW)
-            GPIO.output(CAR_RED, GPIO.HIGH)
-            GPIO.output(PED_RED, GPIO.HIGH)
-            GPIO.output(PED_GREEN, GPIO.LOW)
+            current_status = "자동차 빨간불 / 도보 초록불 + 부저 울림"
+            car_red_ped_green()
             time.sleep(timers["car_red"])
 
-            current_status = "자동차 노란불"
-            GPIO.output(CAR_YELLOW, GPIO.HIGH)
-            GPIO.output(CAR_RED, GPIO.LOW)
+            current_status = "자동차 노란불 / 도보 빨간불"
+            car_yellow_ped_red()
             time.sleep(timers["car_yellow"])
 
-
+# === 웹 라우팅 ===
 @app.route('/')
 def index():
-    return redirect('/admin')
+    return render_template('admin.html', timers=timers, status=current_status)
 
 @app.route('/admin', methods=['GET', 'POST'])
 def admin():
     global timers
     if request.method == 'POST':
-        for key in timers.keys():
+        for key in ["car_green", "car_yellow", "car_red"]:
             if key in request.form:
                 try:
                     timers[key] = int(request.form[key])
                 except ValueError:
-                    pass  # 무효한 입력은 무시
+                    pass
         return redirect('/admin')
-
     return render_template('admin.html', timers=timers, status=current_status)
 
-
+# === 앱 실행 ===
 if __name__ == '__main__':
     t = threading.Thread(target=run_traffic_loop)
     t.daemon = True
     t.start()
     try:
-        print("서버 시작: http://localhost:5000/admin")
         app.run(host='0.0.0.0', port=5000)
     finally:
         GPIO.cleanup()

@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <title>Admin - 신호등 제어</title>
+    <meta http-equiv="refresh" content="5"> <!-- 5초마다 새로고침 -->
 </head>
 <body>
     <h2>🚦 실시간 신호 상태</h2>
@@ -14,13 +15,19 @@
             <tr>
                 <th>타이머 항목</th>
                 <th>현재 값</th>
-                <th>변경 값</th>
+                <th>변경</th>
             </tr>
             {% for key, value in timers.items() %}
             <tr>
                 <td>{{ key }}</td>
                 <td>{{ value }}</td>
-                <td><input type="number" name="{{ key }}" value="{{ value }}"></td>
+                <td>
+                    {% if key.startswith("car_") %}
+                    <input type="number" name="{{ key }}" value="{{ value }}">
+                    {% else %}
+                    <input type="number" value="{{ value }}" disabled>
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
         </table>
