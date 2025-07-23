@@ -14,12 +14,12 @@ PED_RED = 23
 PED_GREEN = 24
 
 PED_BUTTON = 25
-BUZZER = 26  # 새로 추가: 부저 핀
+BUZZER = 26 
 
 # === 타이머 기본값 (초 단위) ===
 timers = {
-    "car_green": 6,
-    "car_yellow": 1,
+    "car_green": 8,
+    "car_yellow": 3,
     "car_red": 5
 }
 
