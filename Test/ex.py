@@ -1,9 +1,10 @@
-from flask import Flask, request, redirect, render_template
+from flask import Flask, request, redirect, render_template, session, url_for
 import RPi.GPIO as GPIO
 import time
 import threading
 
 app = Flask(__name__)
+app.secret_key = 'your_secret_key'  # 세션 사용을 위한 키
 
 # === GPIO 핀 설정 ===
 CAR_GREEN = 18
@@ -44,7 +45,6 @@ def button_pressed(channel):
 
 GPIO.add_event_detect(PED_BUTTON, GPIO.RISING, callback=button_pressed, bouncetime=300)
 
-# === 상태 함수 정의 ===
 def car_green_ped_red():
     GPIO.output(CAR_GREEN, GPIO.HIGH)
     GPIO.output(CAR_YELLOW, GPIO.LOW)
@@ -78,7 +78,6 @@ def pedestrian_sequence():
     car_red_ped_green()
     time.sleep(timers["car_red"])
 
-
     current_status = "자동차 노란불 / 도보 빨간불"
     car_yellow_ped_red()
     time.sleep(timers["car_yellow"])
@@ -87,7 +86,6 @@ def run_traffic_loop():
     global pedestrian_requested, current_status
 
     while True:
-        # 자동차 초록불
         current_status = "자동차 초록불 / 도보 빨간불"
         car_green_ped_red()
         for _ in range(timers["car_green"] * 10):
@@ -98,7 +96,6 @@ def run_traffic_loop():
                     pedestrian_requested = False
                     break
 
-        # 자동차 노란불
         current_status = "자동차 노란불 / 도보 빨간불"
         car_yellow_ped_red()
         for _ in range(timers["car_yellow"] * 10):
@@ -109,7 +106,6 @@ def run_traffic_loop():
                     pedestrian_requested = False
                     break
 
-        # 자동차 빨간불 / 도보 초록불
         current_status = "자동차 빨간불 / 도보 초록불"
         car_red_ped_green()
         for _ in range(timers["car_red"] * 10):
@@ -120,7 +116,6 @@ def run_traffic_loop():
                     pedestrian_requested = False
                     break
 
-        # 다시 노란불 (도보 빨간불)
         current_status = "자동차 노란불 / 도보 빨간불"
         car_yellow_ped_red()
         for _ in range(timers["car_yellow"] * 10):
@@ -133,10 +128,23 @@ def run_traffic_loop():
 
 @app.route('/')
 def index():
-    return render_template('admin.html', timers=timers, status=current_status)
+    return render_template('index.html')
+
+@app.route('/login', methods=['POST'])
+def login():
+    username = request.form.get('username')
+    password = request.form.get('password')
+    if username == 'admin' and password == 'admin':
+        session['logged_in'] = True
+        return redirect('/admin')
+    else:
+        return render_template('index.html', error="잘못된 로그인 정보입니다.")
 
 @app.route('/admin', methods=['GET', 'POST'])
 def admin():
+    if not session.get('logged_in'):
+        return redirect('/')
+    
     global timers
     if request.method == 'POST':
         for key in ["car_green", "car_yellow", "car_red"]:
