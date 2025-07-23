@@ -1,11 +1,8 @@
-from flask import Flask, request, redirect, render_template
 import RPi.GPIO as GPIO
 import time
 import threading
 
-app = Flask(__name__)
-
-# === GPIO 핀 설정 ===
+# === GPIO 핀 번호 ===
 CAR_GREEN = 18
 CAR_YELLOW = 15
 CAR_RED = 14
@@ -15,7 +12,7 @@ PED_GREEN = 24
 
 PED_BUTTON = 25
 
-# === 타이머 설정 (기본값, 초 단위) ===
+# === 타이머 설정 (초) ===
 timers = {
     "car_green": 6,
     "car_yellow": 1,
@@ -24,7 +21,7 @@ timers = {
     "ped_red": 7
 }
 
-# === 초기 GPIO 설정 ===
+# === GPIO 초기화 ===
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 
@@ -33,7 +30,7 @@ for pin in [CAR_GREEN, CAR_YELLOW, CAR_RED, PED_RED, PED_GREEN]:
 
 GPIO.setup(PED_BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
-# === 초기 LED 상태 설정 ===
+# LED 초기 상태: 모두 끔 (자동차 LED는 LOW일 때 켜짐, 보도 LED는 HIGH일 때 꺼짐이라 가정)
 GPIO.output(CAR_GREEN, GPIO.HIGH)
 GPIO.output(CAR_YELLOW, GPIO.HIGH)
 GPIO.output(CAR_RED, GPIO.HIGH)
@@ -42,55 +39,70 @@ GPIO.output(PED_GREEN, GPIO.LOW)
 
 pedestrian_requested = False
 lock = threading.Lock()
-current_status = "초기화 중"
 
 def button_pressed(channel):
     global pedestrian_requested
     with lock:
         if not pedestrian_requested:
             pedestrian_requested = True
+            print("🚶 보행자 버튼 눌림 감지")
 
 GPIO.add_event_detect(PED_BUTTON, GPIO.RISING, callback=button_pressed, bouncetime=300)
 
 def pedestrian_sequence():
-    global current_status
-
-    # 자동차 빨간불 & 보행자 초록불
+    print("🔴 보행자 신호 시작")
+    # 차량 노랑, 보행자 빨강
     GPIO.output(CAR_GREEN, GPIO.LOW)
     GPIO.output(CAR_YELLOW, GPIO.HIGH)
     GPIO.output(CAR_RED, GPIO.LOW)
-    current_status = "보행자 초록불"
+
     GPIO.output(PED_RED, GPIO.LOW)
     GPIO.output(PED_GREEN, GPIO.HIGH)
     time.sleep(timers["car_yellow"])
 
+    # 차량 빨강, 보행자 빨강 유지 1초
     GPIO.output(CAR_GREEN, GPIO.LOW)
     GPIO.output(CAR_YELLOW, GPIO.LOW)
     GPIO.output(CAR_RED, GPIO.HIGH)
-    time.sleep(1)
-
-    GPIO.output(PED_RED, GPIO.HIGH)
-    GPIO.output(PED_GREEN, GPIO.LOW)
-    current_status = "보행자 빨간불"
-    time.sleep(timers["ped_green"])
 
     GPIO.output(PED_RED, GPIO.LOW)
     GPIO.output(PED_GREEN, GPIO.HIGH)
     time.sleep(1)
 
+    # 차량 빨강 유지, 보행자 초록
+    GPIO.output(CAR_GREEN, GPIO.LOW)
+    GPIO.output(CAR_YELLOW, GPIO.LOW)
+    GPIO.output(CAR_RED, GPIO.HIGH)
+
+    GPIO.output(PED_RED, GPIO.HIGH)
+    GPIO.output(PED_GREEN, GPIO.LOW)
+    time.sleep(timers["ped_green"])
+
+    # 보행자 빨강 (안전시간 1초)
+    GPIO.output(PED_RED, GPIO.LOW)
+    GPIO.output(PED_GREEN, GPIO.HIGH)
+    time.sleep(1)
+
+    # 차량 노랑, 보행자 빨강
     GPIO.output(CAR_GREEN, GPIO.LOW)
     GPIO.output(CAR_YELLOW, GPIO.HIGH)
     GPIO.output(CAR_RED, GPIO.LOW)
+
+    GPIO.output(PED_RED, GPIO.LOW)
+    GPIO.output(PED_GREEN, GPIO.HIGH)
     time.sleep(timers["car_yellow"])
 
+    # 차량 초록, 보행자 빨강
     GPIO.output(CAR_GREEN, GPIO.HIGH)
     GPIO.output(CAR_YELLOW, GPIO.LOW)
     GPIO.output(CAR_RED, GPIO.LOW)
+
+    GPIO.output(PED_RED, GPIO.LOW)
     GPIO.output(PED_GREEN, GPIO.HIGH)
-    current_status = "자동차 초록불"
+    print("🟢 보행자 신호 종료, 기본 신호로 복귀")
 
 def run_traffic_loop():
-    global pedestrian_requested, current_status
+    global pedestrian_requested
 
     while True:
         if pedestrian_requested:
@@ -98,57 +110,48 @@ def run_traffic_loop():
             with lock:
                 pedestrian_requested = False
         else:
-            current_status = "자동차 초록불"
+            print("🚗 차량 초록불 / 보행자 빨간불")
             GPIO.output(CAR_GREEN, GPIO.HIGH)
             GPIO.output(CAR_YELLOW, GPIO.LOW)
             GPIO.output(CAR_RED, GPIO.LOW)
+
             GPIO.output(PED_RED, GPIO.LOW)
             GPIO.output(PED_GREEN, GPIO.HIGH)
             time.sleep(timers["car_green"])
 
-            current_status = "자동차 노란불"
+            print("🟡 차량 노란불 / 보행자 빨간불")
             GPIO.output(CAR_GREEN, GPIO.LOW)
             GPIO.output(CAR_YELLOW, GPIO.HIGH)
+            GPIO.output(CAR_RED, GPIO.LOW)
+
+            GPIO.output(PED_RED, GPIO.LOW)
+            GPIO.output(PED_GREEN, GPIO.HIGH)
             time.sleep(timers["car_yellow"])
 
-            current_status = "자동차 빨간불"
+            print("🔴 차량 빨간불 / 보행자 초록불")
+            GPIO.output(CAR_GREEN, GPIO.LOW)
             GPIO.output(CAR_YELLOW, GPIO.LOW)
             GPIO.output(CAR_RED, GPIO.HIGH)
+
             GPIO.output(PED_RED, GPIO.HIGH)
             GPIO.output(PED_GREEN, GPIO.LOW)
             time.sleep(timers["car_red"])
 
-            current_status = "자동차 노란불"
+            print("🟡 차량 노란불 / 보행자 초록불")
+            GPIO.output(CAR_GREEN, GPIO.LOW)
             GPIO.output(CAR_YELLOW, GPIO.HIGH)
             GPIO.output(CAR_RED, GPIO.LOW)
+
+            GPIO.output(PED_RED, GPIO.HIGH)
+            GPIO.output(PED_GREEN, GPIO.LOW)
             time.sleep(timers["car_yellow"])
+if __name__=="__main__":
+	try:
+    	print("🚦 신호등 시스템 시작")
+    	run_traffic_loop()
 
+	except KeyboardInterrupt:
+    	print("🛑 종료 중...")
 
-@app.route('/')
-def index():
-    return redirect('/admin')
-
-@app.route('/admin', methods=['GET', 'POST'])
-def admin():
-    global timers
-    if request.method == 'POST':
-        for key in timers.keys():
-            if key in request.form:
-                try:
-                    timers[key] = int(request.form[key])
-                except ValueError:
-                    pass  # 무효한 입력은 무시
-        return redirect('/admin')
-
-    return render_template('admin.html', timers=timers, status=current_status)
-
-
-if __name__ == '__main__':
-    t = threading.Thread(target=run_traffic_loop)
-    t.daemon = True
-    t.start()
-    try:
-        print("서버 시작: http://localhost:5000/admin")
-        app.run(host='0.0.0.0', port=5000)
-    finally:
-        GPIO.cleanup()
+	finally:
+    	GPIO.cleanup()
