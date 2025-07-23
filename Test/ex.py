@@ -75,8 +75,8 @@ def car_red_ped_green():
     GPIO.output(CAR_RED, GPIO.HIGH)
     GPIO.output(PED_RED, GPIO.HIGH)
     GPIO.output(PED_GREEN, GPIO.LOW)
-    # 부저 울리기 (비동기 X: sleep 사용)
-    for _ in range(timers["car_red"] * 2):  # 0.5초 주기로 삐삐삐
+
+    for _ in range(timers["car_red"] * 2):  
         GPIO.output(BUZZER, GPIO.HIGH)
         time.sleep(0.2)
         GPIO.output(BUZZER, GPIO.LOW)
