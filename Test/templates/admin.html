@@ -1,38 +1,30 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="utf-8">
     <title>Admin - 신호등 제어</title>
     <meta http-equiv="refresh" content="1"> <!-- 1초마다 새로고침 -->
 </head>
+
 <body>
     <h2>🚦 실시간 신호 상태</h2>
     <p><strong>현재 상태:</strong> {{ status }}</p>
 
     <h2>⏱ 타이머 설정 (초 단위)</h2>
     <form action="/admin" method="post">
-        <table border="1" cellpadding="8">
-            <tr>
-                <th>타이머 항목</th>
-                <th>현재 값</th>
-                <th>변경</th>
-            </tr>
-            {% for key, value in timers.items() %}
-            <tr>
-                <td>{{ key }}</td>
-                <td>{{ value }}</td>
-                <td>
-                    {% if key.startswith("car_") %}
-                    <input type="number" name="{{ key }}" value="{{ value }}">
-                    {% else %}
-                    <input type="number" value="{{ value }}" disabled>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </table>
-        <br>
+        <label>자동차 초록불 시간:
+            <input type="number" name="car_green" value="{{ timers.car_green }}">
+        </label><br>
+        <label>자동차 노란불 시간:
+            <input type="number" name="car_yellow" value="{{ timers.car_yellow }}">
+        </label><br>
+        <label>자동차 빨간불 시간:
+            <input type="number" name="car_red" value="{{ timers.car_red }}">
+        </label><br>
         <button type="submit">변경 적용</button>
     </form>
+
 </body>
+
 </html>
